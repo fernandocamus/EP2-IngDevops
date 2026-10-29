@@ -8,9 +8,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.List;
+import java.util.Collections;
 
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,11 +25,12 @@ class DataTest {
     @Test
     void run_cuandoBDVacia_debeInsertarTodosLosProductos() {
         when(repository.count()).thenReturn(0L);
+        when(repository.saveAll(anyList())).thenReturn(Collections.emptyList());
 
         data.run();
 
         verify(repository, times(1)).count();
-        verify(repository, times(1)).saveAll(any(List.class));
+        verify(repository, times(1)).saveAll(anyList());
     }
 
     @Test
@@ -39,6 +40,6 @@ class DataTest {
         data.run();
 
         verify(repository, times(1)).count();
-        verify(repository, never()).saveAll(any());
+        verify(repository, never()).saveAll(anyList());
     }
 }
