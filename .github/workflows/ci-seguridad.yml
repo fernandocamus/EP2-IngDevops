@@ -1,0 +1,159 @@
+name: Spring Boot CI Seguro TCG
+
+on:
+  push:
+    branches:
+      - main
+      - feature/ep2-devsecops-docker
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # 1. Análisis de seguridad de dependencias (SCA) con Snyk
+  snyk-scan:
+    name: Snyk Security Scan
+    runs-on: ubuntu-latest
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    defaults:
+      run:
+        working-directory: tcg
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: tcg/pom.xml
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Snyk CLI
+        run: npm install -g snyk
+
+      - name: Fix mvnw permissions
+        run: if [ -f mvnw ]; then chmod +x mvnw; fi
+
+      - name: Snyk test Java dependencies
+        run: |
+          snyk test --severity-threshold=high \
+            --file=pom.xml \
+            --json-file-output=snyk-report.json -d || echo "Vulnerabilidades registradas en el reporte JSON"
+
+      - name: Upload Snyk JSON Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-report
+          path: tcg/snyk-report.json
+
+  # 2. Pruebas unitarias y cobertura con JaCoCo
+  test:
+    name: Run Tests with JaCoCo
+    runs-on: ubuntu-latest
+    needs: snyk-scan
+    defaults:
+      run:
+        working-directory: tcg
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: tcg/pom.xml
+
+      - name: Fix mvnw permissions
+        run: if [ -f mvnw ]; then chmod +x mvnw; fi
+
+      - name: Build and test
+        run: ./mvnw -B clean verify
+
+      - name: Upload JaCoCo Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: tcg/target/site/jacoco/
+
+  # 3. Análisis de calidad y seguridad de código (SAST) con SonarCloud
+  sonar-analysis:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    needs: test
+    defaults:
+      run:
+        working-directory: tcg
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: tcg/pom.xml
+
+      - name: Fix mvnw permissions
+        run: if [ -f mvnw ]; then chmod +x mvnw; fi
+
+      - name: Run SonarCloud Analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+            -Dsonar.projectKey=fernandocamus_PruebaEV2_Ing_Devops \
+            -Dsonar.organization=fernandocamus \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.token=${SONAR_TOKEN} \
+            -Dsonar.qualitygate.wait=true
+
+  # 4. Despliegue simulado y verificación en contenedores
+  deploy-simulated:
+    name: Deploy Simulado (Docker Compose)
+    runs-on: ubuntu-latest
+    needs: sonar-analysis
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Levantar servicios con Docker Compose
+        run: |
+          docker compose up -d --build
+
+      - name: Esperar inicializacion de contenedores
+        run: |
+          sleep 25
+
+      - name: Verificar estado y salud de los contenedores
+        run: |
+          docker compose ps
+          docker compose logs tcg-service
+
+      - name: Detener y limpiar contenedores
+        if: always()
+        run: |
+          docker compose down
