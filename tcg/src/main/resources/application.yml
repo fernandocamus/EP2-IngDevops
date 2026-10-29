@@ -2,9 +2,9 @@ spring:
   application:
     name: ms-productos-tcg
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/tcg_db}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:rootpassword}
   jpa:
     hibernate:
       ddl-auto: update
