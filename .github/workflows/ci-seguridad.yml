@@ -125,10 +125,10 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-            -Dsonar.projectKey=fernandocamus_PruebaEV2_Ing_Devops \
+            -Dsonar.projectKey=<fernandocamus_EP2-IngDevops> \
             -Dsonar.organization=fernandocamus \
             -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.token=${SONAR_TOKEN} \
+            -Dsonar.token="${{ secrets.SONAR_TOKEN }}" \
             -Dsonar.qualitygate.wait=true
 
   # 4. Despliegue simulado y verificación en contenedores
