@@ -1,0 +1,57 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-tcg
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: tcg_db
+      MYSQL_USER: tcg_user
+      MYSQL_PASSWORD: tcg_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - tcg-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -prootpassword || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  tcg-service:
+    build:
+      context: .
+      dockerfile: ./tcg/Dockerfile
+    container_name: tcg-app
+    restart: unless-stopped
+    ports:
+      - "9005:9005"
+    environment:
+      SPRING_APPLICATION_NAME: ms-productos-tcg
+      DB_URL: jdbc:mysql://mysql:3306/tcg_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      DB_USERNAME: tcg_user
+      DB_PASSWORD: tcg_password
+      SERVER_PORT: 9005
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - tcg-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+
+networks:
+  tcg-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
